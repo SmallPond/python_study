@@ -16,6 +16,7 @@ import re
 import socket
 import threading
 import time
+import urllib3
 
 TIME = 10
 socket.setdefaulttimeout(TIME)
@@ -44,11 +45,14 @@ def get_html(url):
     :return:    html页面
     '''
     headers = {
-        'User-Agent':
-        'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:23.0) Gecko/20100101 Firefox/23.0'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) Chrome/60.0.3112.90 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'zh-CN,zh;q=0.8',
+
     }
     time_count = 0
     req = urllib.request.Request(url=url, headers=headers)
+    req.add_header('Referer', url)
     while True:
         try:
             page = urllib.request.urlopen(req).read()
@@ -127,11 +131,19 @@ def get_img(album_url, file_name):
         # 此处重复解析了第一页，可以待改进
         album_url_temp = album_url + "/{0}".format(i)
         album_html = get_html(album_url_temp)
+
+        # 网站可能会变化格式，此处用来调试
+        # print(album_url)
         imglist = get_img_url(album_html)
         for img in imglist:
-            print("正在下载第{0}张图片 -> {1}".format(i, file_name))
-            urllib.request.urlretrieve(img, '{0}\{1}.jpg'.format(PATH, i))
-            i += 1
+             print("正在下载第{0}张图片 -> {1}".format(i, file_name))
+             # 解决盗链问题
+             opener = urllib.request.build_opener()
+             opener.addheaders = [('Referer',album_url_temp)]
+             urllib.request.install_opener(opener)
+             # 解决盗链问题
+             urllib.request.urlretrieve(img, '{0}\{1}.jpg'.format(PATH, i))
+        i += 1
 
 
 # 获取整个相册的照片
@@ -146,19 +158,27 @@ if __name__ == "__main__":
     '''
     主函数
     '''
-    file_name = str(sys.argv[1])
+    #file_name = str(sys.argv[1])
+    file_name = "im_here"                 # 生成 exe格式不能传递参数
     try:
         os.mkdir(file_name)
     except Exception as e:
         print("文件夹 {0} 已经存在".format(file_name))
-
+        #os.remove(file_name)
     os.chdir(file_name)
 
     NOW_PATH = os.path.abspath('.')              #获取当前工作目录
     home_html = get_html(url)
     album_name, album_url = get_album_url(home_html)
+
+    ###########调试用###############
+    # print(album_name[0])
+    # print(album_url[0])
+    # get_img(album_url[0], album_name[0])
+    ###########调试用###############
+    # 开启线程下载
     for (album_url_index, album_name_index) in zip(album_url, album_name):
-       #get_img(album_url_index, album_name_index)
+        #get_img(album_url_index, album_name_index)
         my_thread = MyThread(get_img, album_url_index, album_name_index)
         my_thread.start()
 
